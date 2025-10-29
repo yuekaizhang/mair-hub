@@ -12,14 +12,14 @@ VOCODER_TRT_ENGINE_PATH=$MODEL_DIR/vocoder/vocos_vocoder.plan
 mkdir -p $MODEL_DIR/vocoder
 MODEL_REPO=./model_repo_zipvoice
 
-if [ "$stage" -le 0 ] && [ "$stop_stage" -ge 0 ]; then
-    echo "Stage 0: Download prompt audio"
+if [ "$stage" -le 1 ] && [ "$stop_stage" -ge 1 ]; then
+    echo "Stage 1: Download prompt audio"
     pip install -r requirements.txt
     huggingface-cli download k2-fsa/ZipVoice --local-dir $MODEL_DIR
 fi
 
-if [ "$stage" -le 1 ] && [ "$stop_stage" -ge 1 ]; then
-    echo "Stage 1: Export Zipvoice TensorRT model"
+if [ "$stage" -le 2 ] && [ "$stop_stage" -ge 2 ]; then
+    echo "Stage 2: Export Zipvoice TensorRT model"
     python3 -m zipvoice.bin.tensorrt_export \
         --model-name $model_name \
         --model-dir $MODEL_DIR/$model_name \
@@ -28,22 +28,13 @@ if [ "$stage" -le 1 ] && [ "$stop_stage" -ge 1 ]; then
         --tensorrt-model-dir $MODEL_DIR/${model_name}_trt || exit 1
 fi
 
-if [ "$stage" -le 2 ] && [ "$stop_stage" -ge 2 ]; then
-    echo "Exporting vocos vocoder"
-    # python3 scripts/export_vocoder_to_onnx.py --vocoder vocos --output-path $VOCODER_ONNX_PATH --export-trt --trt-output-path $VOCODER_TRT_ENGINE_PATH
-    # python3 scripts/export_vocoder_to_onnx.py --vocoder vocos --output-path $VOCODER_ONNX_PATH
-    bash scripts/export_vocos_trt.sh $VOCODER_ONNX_PATH $VOCODER_TRT_ENGINE_PATH
-fi
+
 
 if [ "$stage" -le 3 ] && [ "$stop_stage" -ge 3 ]; then
     echo "Building triton server"
     rm -r $MODEL_REPO
     cp -r ./model_repo $MODEL_REPO
     python3 scripts/fill_template.py -i $MODEL_REPO/zipvoice/config.pbtxt model_dir:$MODEL_DIR/$model_name,model_name:$model_name,trt_engine_path:$MODEL_DIR/${model_name}_trt/fm_decoder.fp16.plan
-    cp $VOCODER_TRT_ENGINE_PATH $MODEL_REPO/vocoder/1/vocoder.plan
-
-    rm -r $MODEL_REPO/vocoder/
-
 fi
 
 if [ "$stage" -le 4 ] && [ "$stop_stage" -ge 4 ]; then
