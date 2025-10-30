@@ -44,9 +44,9 @@ fi
 
 if [ "$stage" -le 5 ] && [ "$stop_stage" -ge 5 ]; then
     echo "Testing triton server"
-    num_task=26
+    num_task=4
     split_name=wenetspeech4tts
-    log_dir=./log_torch_vocoder_${model_name}_concurrent_${num_task}_${split_name}
+    log_dir=./log_pytriton_vocoder_${model_name}_concurrent_${num_task}_${split_name}
     python3 client_grpc.py --num-tasks $num_task --huggingface-dataset yuekai/seed_tts --split-name $split_name --log-dir $log_dir
 fi
 
@@ -70,4 +70,16 @@ if [ "$stage" -le 7 ] && [ "$stop_stage" -ge 7 ]; then
         --enable-warmup True \
         --num-step 4 \
         --res-dir results
+fi
+
+if [ "$stage" -le 8 ] && [ "$stop_stage" -ge 8 ]; then
+    export CUDA_VISIBLE_DEVICES=1
+    python3 pytriton_server.py  \
+        --model_dir models/zipvoice_distill \
+        --model_name zipvoice_distill \
+        --trt_engine_path models/zipvoice_distill_trt/fm_decoder.fp16.plan \
+        --reference_audio_sample_rate 16000 \
+        --port 8000 \
+        --max_batch_size 4 \
+        --verbose
 fi
