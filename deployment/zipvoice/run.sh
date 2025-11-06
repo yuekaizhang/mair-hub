@@ -44,15 +44,19 @@ fi
 
 if [ "$stage" -le 5 ] && [ "$stop_stage" -ge 5 ]; then
     echo "Testing triton server"
-    num_task=4
+    num_tasks=(1 2 4 8)
     split_name=wenetspeech4tts
-    log_dir=./log_pytriton_vocoder_${model_name}_concurrent_${num_task}_${split_name}
-    python3 client_grpc.py --num-tasks $num_task --huggingface-dataset yuekai/seed_tts --split-name $split_name --log-dir $log_dir
+    for num_task in ${num_tasks[@]}; do
+        log_dir=./log_pytriton_${model_name}_concurrent_${num_task}_${split_name}
+        python3 client_grpc.py --num-tasks $num_task --huggingface-dataset yuekai/seed_tts --split-name $split_name --log-dir $log_dir
+    done
 fi
 
 if [ "$stage" -le 6 ] && [ "$stop_stage" -ge 6 ]; then
     echo "Testing http client"
     wget -nc https://raw.githubusercontent.com/SparkAudio/Spark-TTS/main/example/prompt_audio.wav -O prompt.wav
+    # https://github.com/FunAudioLLM/CosyVoice/blob/main/asset/zero_shot_prompt.wav
+    wget -nc https://raw.githubusercontent.com/FunAudioLLM/CosyVoice/main/asset/zero_shot_prompt.wav -O prompt_short.wav
     python3 client_http.py --reference-audio prompt.wav \
         --reference-text "吃燕窝就选燕之屋，本节目由26年专注高品质燕窝的燕之屋冠名播出。豆奶牛奶换着喝，营养更均衡，本节目由豆本豆豆奶特约播出。" \
         --target-text "身临其境，换新体验。塑造开源语音合成新范式，让智能语音更自然。" \
@@ -82,4 +86,28 @@ if [ "$stage" -le 8 ] && [ "$stop_stage" -ge 8 ]; then
         --port 8000 \
         --max_batch_size 4 \
         --verbose
+fi
+
+if [ "$stage" -le 9 ] && [ "$stop_stage" -ge 9 ]; then
+    python3 pytriton_server.py  \
+        --model_dir models/zipvoice_distill \
+        --model_name zipvoice_distill \
+        --trt_engine_path models/zipvoice_distill_trt/fm_decoder.fp16.plan \
+        --reference_audio_sample_rate 16000 \
+        --port 8000 \
+        --max_batch_size 4 \
+        --use_speaker_cache \
+        --prompt_audio prompt_short.wav \
+        --prompt_text "希望你以后能够做得比我还好呦。" \
+        --verbose
+fi
+
+if [ "$stage" -le 10 ] && [ "$stop_stage" -ge 10 ]; then
+    echo "Testing triton server"
+    num_tasks=(1 2 4 8)
+    split_name=wenetspeech4tts
+    for num_task in ${num_tasks[@]}; do
+        log_dir=./log_spk_cache_pytriton_${model_name}_concurrent_${num_task}_${split_name}
+        python3 client_grpc.py  --num-tasks $num_task --huggingface-dataset yuekai/seed_tts --split-name $split_name --log-dir $log_dir --use-spk2info-cache True
+    done
 fi

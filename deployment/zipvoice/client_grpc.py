@@ -629,13 +629,17 @@ async def send(
         response = await triton_client.infer(model_name, inputs, request_id=str(sequence_id), outputs=outputs)
 
         audio = response.as_numpy("waveform").reshape(-1)
-        actual_duration = len(audio) / save_sample_rate
-
         end = time.time() - start
 
         audio_save_path = os.path.join(audio_save_dir, f"{item['target_audio_path']}.wav")
+        # The tail of the audio file might have -1 padding, if so, remove this sequence of -1s
+        indices = np.where(audio != -1)[0]
+        if indices.size > 0:
+            audio = audio[: indices[-1] + 1]
+
         sf.write(audio_save_path, audio, save_sample_rate, "PCM_16")
 
+        actual_duration = len(audio) / save_sample_rate
         latency_data.append((end, actual_duration))
         total_duration += actual_duration
 
